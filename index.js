@@ -58,8 +58,8 @@ function init() {
   createCreeper();
 
   // 簡單的 spotlight 照亮物體
-  let spotLight = new THREE.SpotLight(0xffffff);
-  spotLight.position.set(-10, 40, 30);
+  let spotLight = new THREE.SpotLight(0xffffff, 5, 100);
+  spotLight.position.set(-10, 20, 20);
   scene.add(spotLight);
   // let spotHelper = new THREE.SpotLightHelper(spotLight)
   // scene.add(spotHelper)
