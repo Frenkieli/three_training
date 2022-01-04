@@ -13,8 +13,8 @@ class Creeper {
     const skinMat = new THREE.MeshStandardMaterial({
       roughness: 0.3, // 粗糙度
       metalness: 0.8, // 金屬感
-      transparent: true, // 透明與否
-      opacity: 0.9, // 透明度
+      // transparent: true, // 透明與否
+      // opacity: 0.9, // 透明度
       side: THREE.DoubleSide, // 雙面材質
       map: skinMap, // 皮膚貼圖
     });
@@ -38,6 +38,7 @@ class Creeper {
     // 頭
     this.head = new THREE.Mesh(headGeo, headMaterials);
     this.head.position.set(0, 6, 0);
+    this.head.rotation.y = 0.5 // 稍微的擺頭
 
     // 身體
     this.body = new THREE.Mesh(bodyGeo, skinMat);
@@ -65,5 +66,13 @@ class Creeper {
     this.creeper.add(this.head);
     this.creeper.add(this.body);
     this.creeper.add(this.feet);
+
+    // 苦力怕投影設定，利用 traverse 遍歷各個子元件設定陰影
+    this.creeper.traverse(function (object) {
+      if (object instanceof THREE.Mesh) {
+        object.castShadow = true;
+        object.receiveShadow = true;
+      }
+    });
   }
 }
