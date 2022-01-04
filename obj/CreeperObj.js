@@ -1,10 +1,10 @@
 class Creeper {
   constructor() {
-    // 苦力怕臉部貼圖
+    // 苦力帕臉部貼圖
     const headMap = new THREE.TextureLoader().load(
       "https://dl.dropboxusercontent.com/s/bkqu0tty04epc46/creeper_face.png"
     );
-    // 苦力怕皮膚貼圖
+    // 苦力帕皮膚貼圖
     const skinMap = new THREE.TextureLoader().load(
       "https://dl.dropboxusercontent.com/s/eev6wxdxfmukkt8/creeper_skin.png"
     );
@@ -38,7 +38,7 @@ class Creeper {
     // 頭
     this.head = new THREE.Mesh(headGeo, headMaterials);
     this.head.position.set(0, 6, 0);
-    this.head.rotation.y = 0.5 // 稍微的擺頭
+    this.head.rotation.y = 0.5; // 稍微的擺頭
 
     // 身體
     this.body = new THREE.Mesh(bodyGeo, skinMat);
@@ -67,12 +67,46 @@ class Creeper {
     this.creeper.add(this.body);
     this.creeper.add(this.feet);
 
-    // 苦力怕投影設定，利用 traverse 遍歷各個子元件設定陰影
+    // 苦力帕投影設定，利用 traverse 遍歷各個子元件設定陰影
     this.creeper.traverse(function (object) {
       if (object instanceof THREE.Mesh) {
         object.castShadow = true;
         object.receiveShadow = true;
       }
     });
+
+    // 動畫參數
+    this.rotateHeadOffset = 0;
+    this.walkOffset = 0;
+    this.scaleHeadOffset = 0;
+  }
+
+  // 苦力帕轉頭
+  creeperHeadRotate(state) {
+    if (state) {
+      this.rotateHeadOffset += 0.04;
+      this.head.rotation.y = Math.sin(this.rotateHeadOffset);
+    }
+  }
+
+  // 苦力帕走動
+  creeperFeetWalk(state) {
+    if (state) {
+      this.walkOffset += 0.04;
+
+      this.foot1.rotation.x = Math.sin(this.walkOffset) / 4; // 前腳左
+      this.foot2.rotation.x = -Math.sin(this.walkOffset) / 4; // 後腳左
+      this.foot3.rotation.x = -Math.sin(this.walkOffset) / 4; // 前腳右
+      this.foot4.rotation.x = Math.sin(this.walkOffset) / 4; // 後腳右
+    }
+  }
+
+  // 苦力帕膨脹
+  creeperScaleBody(state) {
+    if (state) {
+      this.scaleHeadOffset += 0.04;
+      let scaleRate = Math.abs(Math.sin(this.scaleHeadOffset)) / 16 + 1;
+      this.creeper.scale.set(scaleRate, scaleRate, scaleRate);
+    }
   }
 }

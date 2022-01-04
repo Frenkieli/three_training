@@ -5,10 +5,15 @@ let cameraControl, stats, gui;
 let ambientLight, pointLight, spotLight, directionalLight, sphereLightMesh;
 let rotateAngle = 0;
 let invert = 1;
+let creeperObj;
+
+let startRotateHead = false;
+let startWalking = false;
+let startScaleBody = false;
 
 // 生成苦力怕並加到場景
 function createCreeper() {
-  const creeperObj = new Creeper();
+  creeperObj = new Creeper();
   scene.add(creeperObj.creeper);
 }
 
@@ -97,6 +102,7 @@ function init() {
 
   pointLight = new THREE.PointLight(0xccffcc, 1, 100); // 顏色, 強度, 距離
   pointLight.castShadow = true; // 這個光源會有陰影
+  pointLight.position.set(-30, 30, 30);
   // let pointLightHelper = new THREE.PointLightHelper(pointLight);
   // scene.add(pointLightHelper);
   scene.add(pointLight);
@@ -106,12 +112,13 @@ function init() {
   const sphereLightMat = new THREE.MeshBasicMaterial({ color: 0xccffcc });
   sphereLightMesh = new THREE.Mesh(sphereLightGeo, sphereLightMat);
   sphereLightMesh.castShadow = true;
-  sphereLightMesh.position.y = 16;
+  // sphereLightMesh.position.y = 16;
+  sphereLightMesh.position.set(-30, 30, 30);
+
   scene.add(sphereLightMesh);
 
-
-
   // testLightTool(); // 光源測試
+  testCreeperMoveToll(); // 動畫測試
   // 將渲染出來的畫面放到網頁上的 DOM
   document.body.appendChild(renderer.domElement);
 }
@@ -119,7 +126,10 @@ function init() {
 function render() {
   stats.update();
   cameraControl.update();
-  pointLightAnimation(); // 更新光點動畫
+  // pointLightAnimation(); // 更新光點動畫
+  creeperObj.creeperHeadRotate(startRotateHead);
+  creeperObj.creeperFeetWalk(startWalking);
+  creeperObj.creeperScaleBody(startScaleBody);
   requestAnimationFrame(render);
   renderer.render(scene, camera);
 }
@@ -133,6 +143,25 @@ window.addEventListener("resize", function () {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+function testCreeperMoveToll() {
+  let datGUIControls = new (function () {
+    this.startRotateHead = false;
+    this.startWalking = false;
+    this.startScaleBody = false;
+  })();
+  // dat.GUI 控制面板
+  gui = new dat.GUI();
+  gui.add(datGUIControls, "startRotateHead").onChange(function (e) {
+    startRotateHead = e;
+  });
+  gui.add(datGUIControls, "startWalking").onChange(function (e) {
+    startWalking = e;
+  });
+  gui.add(datGUIControls, "startScaleBody").onChange(function (e) {
+    startScaleBody = e;
+  });
+}
 
 function testLightTool() {
   // 光源測試
