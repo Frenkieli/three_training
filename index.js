@@ -105,11 +105,9 @@ function pointLightAnimation() {
   } else {
     rotateAngle += 0.03; // 遞增角度
   }
-
   // 光源延橢圓軌道繞 Y 軸旋轉
-  sphereLightMesh.position.x = 8 * Math.cos(rotateAngle);
-  sphereLightMesh.position.z = 4 * Math.sin(rotateAngle);
-
+  sphereLightMesh.position.x = 20 * Math.sin(rotateAngle);
+  sphereLightMesh.position.z = 20 * Math.cos(rotateAngle);
   // 點光源位置與球體同步
   pointLight.position.copy(sphereLightMesh.position);
 }
@@ -166,17 +164,24 @@ function init() {
 
   // 設置聚光燈幫忙照亮物體
   let spotLight = new THREE.SpotLight(0xf0f0f0);
-  spotLight.position.set(-10, 30, 20);
+  spotLight.position.set(30, 20, 30);
   // spotLight.castShadow = true;
-  let spotLightHelper = new THREE.SpotLightHelper(spotLight);
-  scene.add(spotLightHelper);
+  // let spotLightHelper = new THREE.SpotLightHelper(spotLight);
+  // scene.add(spotLightHelper);
   scene.add(spotLight);
+
+  let spotLight2 = new THREE.SpotLight(0xf0f0f0);
+  spotLight2.position.set(-30, 20, -30);
+  // spotLight2.castShadow = true;
+  // let spotLight2Helper = new THREE.SpotLightHelper(spotLight2);
+  // scene.add(spotLight2Helper);
+  scene.add(spotLight2);
 
   // 移動點光源
 
   pointLight = new THREE.PointLight(0xccffcc, 1, 100); // 顏色, 強度, 距離
   pointLight.castShadow = true; // 這個光源會有陰影
-  pointLight.position.set(-30, 30, 30);
+  pointLight.position.set(-40, 40, 30);
   // let pointLightHelper = new THREE.PointLightHelper(pointLight);
   // scene.add(pointLightHelper);
   scene.add(pointLight);
@@ -187,7 +192,7 @@ function init() {
   sphereLightMesh = new THREE.Mesh(sphereLightGeo, sphereLightMat);
   sphereLightMesh.castShadow = true;
   // sphereLightMesh.position.y = 16;
-  sphereLightMesh.position.set(-30, 30, 30);
+  sphereLightMesh.position.set(-40, 40, 30);
 
   scene.add(sphereLightMesh);
 
@@ -201,10 +206,11 @@ function init() {
 function render() {
   stats.update();
   cameraControl.update();
-  // pointLightAnimation(); // 更新光點動畫
-  creeperObj.creeperHeadRotate(startRotateHead);
-  creeperObj.creeperFeetWalk(startWalking);
-  creeperObj.creeperScaleBody(startScaleBody);
+  pointLightAnimation(); // 更新光點動畫
+  // creeperObj.creeperHeadRotate(startRotateHead);
+  // creeperObj.creeperFeetWalk(startWalking);
+  // creeperObj.creeperScaleBody(startScaleBody);
+  creeperObj.creeperFeetWalk(true);
 
   TWEEN.update();
   requestAnimationFrame(render);
