@@ -27,6 +27,7 @@ function initPointerLockControls() {
         gameData.prevTime = new Date()
         start.textContent = '繼續遊戲'
         restart.style.display = 'inline-block'
+        bgm.play()
       } else {
         controls.enabled = false
         blocker.style.display = '-webkit-box'
@@ -34,6 +35,7 @@ function initPointerLockControls() {
         blocker.style.display = 'box'
         game_info[0].style.display = 'none'
         instructions.style.display = ''
+        bgm.pause()
       }
     }
     const pointerlockerror = function(event) {

@@ -11,6 +11,36 @@ let ammoMeshes = []
 let bricks = []
 let brickMeshes = []
 let walkSpeed = 0
+let ground
+let synth
+const bgm = document.getElementById('bgm')
+bgm.volume = 0.5
+const explosionMusic = document.getElementById('explosionMusic')
+explosionMusic.volume = 0.5
+const loader = new THREE.OBJLoader()
+
+const creeperPosition = [
+  [10, 30],
+  [60, -30],
+  [110, 70],
+  [160, -70],
+  [210, 110],
+  [-10, -110],
+  [-60, 150],
+  [-110, -150],
+  [-160, 190],
+  [-210, -190],
+  [260, 230],
+  [20, 400],
+  [130, -40],
+  [-130, -40],
+  [130, 40],
+  [-130, 40],
+  [180, 0],
+  [-180, 0],
+  [0, 130],
+  [0, -130]
+]
 
 // Cannon.js
 let world
@@ -33,7 +63,7 @@ const boxGeometry = new THREE.BoxGeometry(
 // Game flow
 const originData = {
   score: 0,
-  remainingTime: 60000 // 1 min
+  remainingTime: 240000 // 4 min
 }
 let gameData = {}
 
@@ -114,17 +144,28 @@ function initLight() {
 
   // spotlight
   light = new THREE.SpotLight(0xffffff)
-  light.position.set(10, 50, 20)
+  light.position.set(100, 100, 100)
   light.target.position.set(0, 0, 0)
   light.castShadow = true
   light.shadow.camera.near = 20
-  light.shadow.camera.far = 50 //camera.far;
-  light.shadow.camera.fov = 40
+  light.shadow.camera.far = 500 //camera.far;
+  light.shadow.camera.fov = 70
   light.shadowMapBias = 0.1
   light.shadowMapDarkness = 0.7
   light.shadow.mapSize.width = 2 * 512
   light.shadow.mapSize.height = 2 * 512
+  // let spotLightHelper = new THREE.SpotLightHelper(light)
+  // scene.add(spotLightHelper)
   scene.add(light)
+
+  let directionalLight = new THREE.DirectionalLight(0x555555)
+  directionalLight.position.set(100, 100, 100)
+  // directionalLight.castShadow = true
+  scene.add(directionalLight)
+
+  let hemiLight = new THREE.HemisphereLight(0x000022, 0x002200, 0.5)
+  hemiLight.position.set(0, 300, 0)
+  scene.add(hemiLight)
 }
 
 function initHelper() {
@@ -145,9 +186,17 @@ function createGround() {
   groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2)
   world.add(groundBody)
 
-  const groundGeometry = new THREE.PlaneGeometry(500, 500, 50, 50)
-  const groundMaterial = new THREE.MeshLambertMaterial({ color: 0xa5a5a5 })
-  let ground = new THREE.Mesh(groundGeometry, groundMaterial)
+  const groundTexture = textureLoader.load('./img/grasslight-big.jpg')
+  groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping
+  groundTexture.repeat.set(25, 25)
+  groundTexture.anisotropy = 16
+
+  const groundMaterial = new THREE.MeshLambertMaterial({ map: groundTexture })
+
+  ground = new THREE.Mesh(
+    new THREE.PlaneBufferGeometry(1000, 1000),
+    groundMaterial
+  )
   ground.rotation.x = -Math.PI / 2
   ground.receiveShadow = true
   ground.name = 'floor'
@@ -164,9 +213,25 @@ function initGameData() {
   remainingTimeDOM.textContent = gameData.remainingTime / 1000
 }
 
+function initGunShotSound() {
+  const filter = new Tone.Filter(1800, 'lowpass').toMaster()
+  synth = new Tone.NoiseSynth({
+    noise: {
+      type: 'white',
+      playbackRate: 2
+    },
+    envelope: {
+      attack: 0.005,
+      decay: 0.1,
+      sustain: 0.0001,
+      release: 0.1
+    }
+  }).connect(filter)
+}
+
 function createCreeper(num) {
   for (let i = 0; i < num; i++) {
-    creeperObj[i] = new Creeper(2, 1, i - num / 2)
+    creeperObj[i] = new Creeper(2, 1, creeperPosition[i])
     scene.add(creeperObj[i].creeper)
     world.addBody(creeperObj[i].headBody)
     world.addBody(creeperObj[i].bodyBody)
@@ -185,9 +250,9 @@ function createCreeper(num) {
 function createBoxes(count) {
   // Add boxes
   for (let i = 0; i < count; i++) {
-    const x = (Math.random() - 0.5) * 100
+    const x = (Math.random() - 0.5) * 200
     const y = 10 + (Math.random() - 0.5) * 1
-    const z = (Math.random() - 0.5) * 100
+    const z = (Math.random() - 0.5) * 200
     const boxBody = new CANNON.Body({ mass: 5, material: physicsMaterial })
     boxBody.addShape(boxShape)
     const boxMaterial = new THREE.MeshLambertMaterial({
@@ -205,6 +270,55 @@ function createBoxes(count) {
   }
 }
 
+function createTower() {
+  let towerBumpMat = new THREE.MeshStandardMaterial({
+    metalness: 0.05,
+    roughness: 0.9
+  })
+  towerBumpMat.map = textureLoader.load(
+    './obj/tower/textures/Wood_Tower_Col.jpg'
+  )
+  // towerBumpMat.bumpMap = textureLoader.load(
+  //   './obj/tower/textures/Wood_Tower_Nor.jpg'
+  // )
+  // towerBumpMat.bumpScale = 1
+  loader.load('./obj/tower/tower.obj', function(loadedMesh) {
+    loadedMesh.children.forEach(function(child) {
+      child.material = towerBumpMat
+      child.geometry.computeFaceNormals()
+      child.geometry.computeVertexNormals()
+    })
+    loadedMesh.scale.set(10, 10, 10)
+    loadedMesh.position.set(0, -8, 100)
+    loadedMesh.castShadow = true
+    scene.add(loadedMesh)
+  })
+}
+
+function createCorona() {
+  let coronaBumpMat = new THREE.MeshStandardMaterial({
+    metalness: 0.05,
+    roughness: 0.9
+  })
+  coronaBumpMat.map = textureLoader.load('./obj/Corona/BotellaText.jpg')
+  coronaBumpMat.bumpMap = textureLoader.load('./obj/Corona/BotellaText.jpg')
+  coronaBumpMat.bumpScale = 1
+  loader.load('./obj/Corona/Corona.obj', function(loadedMesh) {
+    loadedMesh.children.forEach(function(child) {
+      child.material = coronaBumpMat
+      child.geometry.computeFaceNormals()
+      child.geometry.computeVertexNormals()
+    })
+    // loadedMesh.scale.set(0.2, 0.2, 0.2)
+    loadedMesh.position.set(30, 0, 100)
+    loadedMesh.rotation.x = -0.3
+    loadedMesh.rotation.y = 0.5
+    loadedMesh.rotation.z = -0.5
+    loadedMesh.castShadow = true
+    scene.add(loadedMesh)
+  })
+}
+
 // Three.js init setting
 function init() {
   initCannon()
@@ -216,12 +330,15 @@ function init() {
   initHelper()
   initGameData()
   // initDatGUI()
+  initGunShotSound()
   stats = initStats()
 
   createGround()
-  createCreeper(10)
-  createBoxes(20)
+  createCreeper(20)
+  createBoxes(50)
   createPointsScene()
+  createTower()
+  createCorona()
 
   document.body.appendChild(renderer.domElement)
 }
@@ -256,6 +373,10 @@ window.addEventListener('click', function(e) {
 
     // 左鍵（1）射擊與右鍵（3）疊磚
     if (e.which === 1) {
+      // 射擊聲
+      if (synth) {
+        synth.triggerAttackRelease('0.01')
+      }
       // 子彈數量過多時移除舊子彈
       if (ammos.length > 50) {
         for (let i = 0; i < ammos.length; i++) {
@@ -267,8 +388,10 @@ window.addEventListener('click', function(e) {
         ammoMeshes.length = 0
       }
       // 子彈剛體與網格
-      const ammoBody = new CANNON.Body({ mass: 30 })
+      const ammoBody = new CANNON.Body({ mass: 20 })
+      // const ammoShape = new CANNON.Sphere(0.0002)
       ammoBody.addShape(ballShape)
+
       const ammoMaterial = new THREE.MeshStandardMaterial({ color: 0x93882f })
       const ammoMesh = new THREE.Mesh(ballGeometry, ammoMaterial)
       world.addBody(ammoBody)
@@ -303,10 +426,14 @@ window.addEventListener('click', function(e) {
       // 磚塊剛體與網格
       const brickBody = new CANNON.Body({ mass: 10 })
       brickBody.addShape(boxShape)
-      const brickMaterial = new THREE.MeshStandardMaterial({
-        color: 0x3a0c0c
+      let brickBumpMat = new THREE.MeshStandardMaterial({
+        metalness: 0.1,
+        roughness: 0.8
       })
-      const brickMesh = new THREE.Mesh(boxGeometry, brickMaterial)
+      brickBumpMat.map = textureLoader.load('./img/brickNormal.jpg')
+      brickBumpMat.bumpMap = textureLoader.load('./img/brickBumpMap.jpg')
+      brickBumpMat.bumpScale = 1
+      const brickMesh = new THREE.Mesh(boxGeometry, brickBumpMat)
       world.addBody(brickBody)
       scene.add(brickMesh)
       brickMesh.castShadow = true
@@ -320,9 +447,9 @@ window.addEventListener('click', function(e) {
         shootDirection.z * 10
       )
       // Move the ball outside the player sphere
-      x += shootDirection.x * (sphereShape.radius * 1.02 + ballShape.radius)
-      y += shootDirection.y * (sphereShape.radius * 1.02 + ballShape.radius)
-      z += shootDirection.z * (sphereShape.radius * 1.02 + ballShape.radius)
+      x += shootDirection.x * (sphereShape.radius * 1.02 + 1)
+      y += shootDirection.y * (sphereShape.radius * 1.02 + 1)
+      z += shootDirection.z * (sphereShape.radius * 1.02 + 1)
       brickBody.position.set(x, y, z)
       brickMesh.position.set(x, y, z)
     }
@@ -400,12 +527,14 @@ function render() {
             explosion[2] = new Explosion(x - 5, y + 5, z + 10, 0x666666)
             explosion[3] = new Explosion(x - 5, y + 5, z + 5, 0x999999)
             explosion[4] = new Explosion(x + 5, y + 5, z - 5, 0xcccccc)
+
+            explosionMusic.play()
           }
         }
         // 計分並顯示到畫面上
         gameData.score += 10000
         scoreDOM.textContent = gameData.score
-        if (gameData.score === 10 * 10000) {
+        if (gameData.score === 20 * 10000) {
           handleEndGame()
         }
       }

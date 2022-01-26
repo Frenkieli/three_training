@@ -7,6 +7,7 @@ let newScore = 0
 
 const newScoreDOM = document.getElementById('newScore')
 const bestScoreDOM = document.getElementById('bestScore')
+const clearDOM = document.getElementById('clear')
 
 newScore =
   newGameResult.score + parseInt(newGameResult.remainingTime / 1000) * 1000
@@ -16,4 +17,8 @@ if (newScore > parseInt(bestGameResult)) {
   bestGameResult = newScore
 }
 bestScoreDOM.textContent = bestGameResult
-// localStorage.removeItem('NEW_GAME_RESULT')
+
+clearDOM.addEventListener('click', () => {
+  localStorage.removeItem('BEST_GAME_RESULT')
+  bestScoreDOM.textContent = 0
+})
