@@ -6,14 +6,26 @@ let creeperObj
 let explosion = []
 let boxes = []
 let boxMeshes = []
+let ammos = []
+let ammoMeshes = []
 
 // Cannon.js
 let world
 let physicsMaterial
 let groundBody
-let sphereShape, sphereBody
+let sphereShape = new CANNON.Sphere(1.5)
+let playerBody
 const dt = 1.0 / 60.0 // seconds
 let time = Date.now()
+let cannonDebugRenderer
+
+const halfExtents = new CANNON.Vec3(1, 1, 1)
+const boxShape = new CANNON.Box(halfExtents)
+const boxGeometry = new THREE.BoxGeometry(
+  halfExtents.x * 2,
+  halfExtents.y * 2,
+  halfExtents.z * 2
+)
 
 function initCannon() {
   // 初始化 cannon.js、重力、碰撞偵測
@@ -36,18 +48,21 @@ function initCannon() {
   const physicsContactMaterial = new CANNON.ContactMaterial(
     physicsMaterial,
     physicsMaterial,
-    0.0, // 摩擦力
-    0.3 // 恢復係數
+    0.0,
+    0.3
   )
   world.addContactMaterial(physicsContactMaterial)
 
   // 鼠標控制器剛體
-  sphereShape = new CANNON.Sphere(1.5)
-  sphereBody = new CANNON.Body({ mass: 5 })
-  sphereBody.addShape(sphereShape)
-  sphereBody.position.set(0, 5, 0)
-  sphereBody.linearDamping = 0.9
-  world.addBody(sphereBody)
+  // const playerShapeVec3 = new CANNON.Vec3(1, 1, 1)
+  // const playerShape = new CANNON.Box(playerShapeVec3)
+  playerBody = new CANNON.Body({ mass: 5 })
+  playerBody.addShape(sphereShape)
+  playerBody.position.set(10, 0, 10)
+  playerBody.linearDamping = 0.9
+  world.addBody(playerBody)
+
+  // cannonDebugRenderer = new THREE.CannonDebugRenderer(scene, world)
 }
 
 function initStats() {
@@ -109,18 +124,18 @@ function initLight() {
 }
 
 function initHelper() {
-  // let axes = new THREE.AxesHelper(20)
-  // scene.add(axes)
+  let axes = new THREE.AxesHelper(20)
+  scene.add(axes)
 }
 
 function createGround() {
   // 建立地板剛體
   let groundShape = new CANNON.Plane()
-  let groundCM = new CANNON.Material()
+  // let groundCM = new CANNON.Material()
   groundBody = new CANNON.Body({
     mass: 0,
     shape: groundShape,
-    material: groundCM
+    material: physicsMaterial
   })
   // setFromAxisAngle 旋轉 x 軸 -90 度
   groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2)
@@ -136,27 +151,29 @@ function createGround() {
 }
 
 function createCreeper() {
-  creeperObj = new Creeper()
+  creeperObj = new Creeper(1, 1)
   // tweenHandler()
-  creeperObj.creeper.position.set(10, 0, 0)
   scene.add(creeperObj.creeper)
+  world.addBody(creeperObj.headBody)
+  world.addBody(creeperObj.bodyBody)
+  world.addBody(creeperObj.leftFrontLegBody)
+  world.addBody(creeperObj.leftBackLegBody)
+  world.addBody(creeperObj.rightFrontLegBody)
+  world.addBody(creeperObj.rightBackLegBody)
+  world.addConstraint(creeperObj.neckJoint)
+  world.addConstraint(creeperObj.leftFrontKneeJoint)
+  world.addConstraint(creeperObj.leftBackKneeJoint)
+  world.addConstraint(creeperObj.rightFrontKneeJoint)
+  world.addConstraint(creeperObj.rightBackKneeJoint)
 }
 
 function createBoxes(count) {
   // Add boxes
-  const halfExtents = new CANNON.Vec3(1, 1, 1)
-  const boxShape = new CANNON.Box(halfExtents)
-  const boxGeometry = new THREE.BoxGeometry(
-    halfExtents.x * 2,
-    halfExtents.y * 2,
-    halfExtents.z * 2
-  )
-
   for (let i = 0; i < count; i++) {
-    const x = (Math.random() - 0.5) * 30
+    const x = (Math.random() - 0.5) * 60
     const y = 10 + (Math.random() - 0.5) * 1
-    const z = (Math.random() - 0.5) * 30
-    const boxBody = new CANNON.Body({ mass: 5 })
+    const z = (Math.random() - 0.5) * 60
+    const boxBody = new CANNON.Body({ mass: 5, material: physicsMaterial })
     boxBody.addShape(boxShape)
     const boxMaterial = new THREE.MeshLambertMaterial({
       color: Math.random() * 0xffffff
@@ -187,24 +204,126 @@ function init() {
 
   createGround()
   createCreeper()
-  createBoxes(30)
-  createPointsScene()
+  createBoxes(20)
+  // createPointsScene()
 
   document.body.appendChild(renderer.domElement)
 }
 
+// shooting related settings
+const ballShape = new CANNON.Sphere(0.2)
+const ballGeometry = new THREE.SphereGeometry(ballShape.radius, 32, 32)
+let shootDirection = new THREE.Vector3()
+const shootVelo = 15
+let raycaster = new THREE.Raycaster() // create once
+let mouse = new THREE.Vector2() // create once
+
+function getShootDir(event, targetVec) {
+  // 取得滑鼠在網頁上 (x, y) 位置
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
+
+  // 透過 raycaster 取得目前玩家朝向方向
+  raycaster.setFromCamera(mouse, camera)
+
+  // 取得 raycaster 方向並決定發射方向
+  targetVec.copy(raycaster.ray.direction)
+}
+
+// shooting event
+window.addEventListener('click', function(e) {
+  if (controls.enabled == true) {
+    let ammoShape
+    let ammoGeometry
+    let ammoMass
+    let ammoColor
+    switch (e.which) {
+      case 1: // 左鍵射擊
+        ammoShape = ballShape
+        ammoGeometry = ballGeometry
+        ammoMass = 20
+        ammoColor = 0x93882f
+        break
+      case 3: // 右鍵疊磚
+        ammoShape = boxShape
+        ammoGeometry = boxGeometry
+        ammoMass = 50
+        ammoColor = 0x0f0201
+      default:
+        break
+    }
+
+    // 取得目前玩家位置
+    let x = playerBody.position.x
+    let y = playerBody.position.y
+    let z = playerBody.position.z
+
+    // 子彈剛體與網格
+    const ammoBody = new CANNON.Body({ mass: ammoMass })
+    ammoBody.addShape(ammoShape)
+    const ammoMaterial = new THREE.MeshStandardMaterial({ color: ammoColor })
+    const ammoMesh = new THREE.Mesh(ammoGeometry, ammoMaterial)
+    world.addBody(ammoBody)
+    scene.add(ammoMesh)
+    ammoMesh.castShadow = true
+    ammoMesh.receiveShadow = true
+    ammos.push(ammoBody)
+    ammoMeshes.push(ammoMesh)
+    getShootDir(e, shootDirection)
+    ammoBody.velocity.set(
+      shootDirection.x * shootVelo,
+      shootDirection.y * shootVelo,
+      shootDirection.z * shootVelo
+    )
+    // Move the ball outside the player sphere
+    x += shootDirection.x * (sphereShape.radius * 1.02 + ballShape.radius)
+    y += shootDirection.y * (sphereShape.radius * 1.02 + ballShape.radius)
+    z += shootDirection.z * (sphereShape.radius * 1.02 + ballShape.radius)
+    ammoBody.position.set(x, y, z)
+    ammoMesh.position.set(x, y, z)
+  }
+})
+
 function render() {
   requestAnimationFrame(render)
   stats.update()
-  pointsSceneAnimation()
+  // pointsSceneAnimation()
 
   if (controls.enabled) {
     world.step(dt)
+    // cannonDebugRenderer.update() // Update the debug renderer
     // Update box mesh positions
     for (let i = 0; i < boxes.length; i++) {
       boxMeshes[i].position.copy(boxes[i].position)
       boxMeshes[i].quaternion.copy(boxes[i].quaternion)
     }
+    // Update shooting ball positions
+    for (let i = 0; i < ammos.length; i++) {
+      ammoMeshes[i].position.copy(ammos[i].position)
+      ammoMeshes[i].quaternion.copy(ammos[i].quaternion)
+    }
+    creeperObj.head.position.copy(creeperObj.headBody.position)
+    creeperObj.head.quaternion.copy(creeperObj.headBody.quaternion)
+    creeperObj.body.position.copy(creeperObj.bodyBody.position)
+    creeperObj.body.quaternion.copy(creeperObj.bodyBody.quaternion)
+    creeperObj.leftFrontLeg.position.copy(creeperObj.leftFrontLegBody.position)
+    creeperObj.leftFrontLeg.quaternion.copy(
+      creeperObj.leftFrontLegBody.quaternion
+    )
+    creeperObj.leftBackLeg.position.copy(creeperObj.leftBackLegBody.position)
+    creeperObj.leftBackLeg.quaternion.copy(
+      creeperObj.leftBackLegBody.quaternion
+    )
+    creeperObj.rightFrontLeg.position.copy(
+      creeperObj.rightFrontLegBody.position
+    )
+    creeperObj.rightFrontLeg.quaternion.copy(
+      creeperObj.rightFrontLegBody.quaternion
+    )
+    creeperObj.rightBackLeg.position.copy(creeperObj.rightBackLegBody.position)
+    creeperObj.rightBackLeg.quaternion.copy(
+      creeperObj.rightBackLegBody.quaternion
+    )
   }
   controls.update(Date.now() - time)
   time = Date.now()
