@@ -1,5 +1,4 @@
 let tween, tweenBack
-let walkSpeed = 0
 let scaleHeadOffset = 0
 
 function tweenHandler() {

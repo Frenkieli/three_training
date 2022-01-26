@@ -2,12 +2,15 @@
 let renderer, scene, camera
 let stats, gui
 let controls
-let creeperObj
+let creeperObj = []
 let explosion = []
 let boxes = []
 let boxMeshes = []
 let ammos = []
 let ammoMeshes = []
+let bricks = []
+let brickMeshes = []
+let walkSpeed = 0
 
 // Cannon.js
 let world
@@ -27,6 +30,13 @@ const boxGeometry = new THREE.BoxGeometry(
   halfExtents.z * 2
 )
 
+// Game flow
+const originData = {
+  score: 0,
+  remainingTime: 600000 // 10 min
+}
+let gameData = {}
+
 function initCannon() {
   // 初始化 cannon.js、重力、碰撞偵測
   world = new CANNON.World()
@@ -37,7 +47,7 @@ function initCannon() {
   const solver = new CANNON.GSSolver()
   solver.iterations = 7
   solver.tolerance = 0.1
-  const split = true
+  const split = false
   if (split) world.solver = new CANNON.SplitSolver(solver)
   else world.solver = solver
 
@@ -58,7 +68,7 @@ function initCannon() {
   // const playerShape = new CANNON.Box(playerShapeVec3)
   playerBody = new CANNON.Body({ mass: 5 })
   playerBody.addShape(sphereShape)
-  playerBody.position.set(10, 0, 10)
+  playerBody.position.set(-10, 0, 50)
   playerBody.linearDamping = 0.9
   world.addBody(playerBody)
 
@@ -125,7 +135,7 @@ function initLight() {
 
 function initHelper() {
   let axes = new THREE.AxesHelper(20)
-  scene.add(axes)
+  // scene.add(axes)
 }
 
 function createGround() {
@@ -150,21 +160,31 @@ function createGround() {
   scene.add(ground)
 }
 
+const scoreDOM = document.getElementById('score')
+// const remainingTimeDOM = document.getElementById('remainingTime')
+
+function initGameData() {
+  gameData = originData
+  scoreDOM.textContent = gameData.score
+  // remainingTimeDOM.textContent = gameData.remainingTime / 1000
+}
+
 function createCreeper() {
-  creeperObj = new Creeper(1, 1)
-  // tweenHandler()
-  scene.add(creeperObj.creeper)
-  world.addBody(creeperObj.headBody)
-  world.addBody(creeperObj.bodyBody)
-  world.addBody(creeperObj.leftFrontLegBody)
-  world.addBody(creeperObj.leftBackLegBody)
-  world.addBody(creeperObj.rightFrontLegBody)
-  world.addBody(creeperObj.rightBackLegBody)
-  world.addConstraint(creeperObj.neckJoint)
-  world.addConstraint(creeperObj.leftFrontKneeJoint)
-  world.addConstraint(creeperObj.leftBackKneeJoint)
-  world.addConstraint(creeperObj.rightFrontKneeJoint)
-  world.addConstraint(creeperObj.rightBackKneeJoint)
+  for (let i = 0; i < 10; i++) {
+    creeperObj[i] = new Creeper(2, 1, i - 5)
+    scene.add(creeperObj[i].creeper)
+    world.addBody(creeperObj[i].headBody)
+    world.addBody(creeperObj[i].bodyBody)
+    world.addBody(creeperObj[i].leftFrontLegBody)
+    world.addBody(creeperObj[i].leftBackLegBody)
+    world.addBody(creeperObj[i].rightFrontLegBody)
+    world.addBody(creeperObj[i].rightBackLegBody)
+    world.addConstraint(creeperObj[i].neckJoint)
+    world.addConstraint(creeperObj[i].leftFrontKneeJoint)
+    world.addConstraint(creeperObj[i].leftBackKneeJoint)
+    world.addConstraint(creeperObj[i].rightFrontKneeJoint)
+    world.addConstraint(creeperObj[i].rightBackKneeJoint)
+  }
 }
 
 function createBoxes(count) {
@@ -199,6 +219,7 @@ function init() {
   initRenderer()
   initLight()
   initHelper()
+  initGameData()
   // initDatGUI()
   stats = initStats()
 
@@ -233,54 +254,71 @@ function getShootDir(event, targetVec) {
 // shooting event
 window.addEventListener('click', function(e) {
   if (controls.enabled == true) {
-    let ammoShape
-    let ammoGeometry
-    let ammoMass
-    let ammoColor
-    switch (e.which) {
-      case 1: // 左鍵射擊
-        ammoShape = ballShape
-        ammoGeometry = ballGeometry
-        ammoMass = 20
-        ammoColor = 0x93882f
-        break
-      case 3: // 右鍵疊磚
-        ammoShape = boxShape
-        ammoGeometry = boxGeometry
-        ammoMass = 50
-        ammoColor = 0x0f0201
-      default:
-        break
-    }
-
     // 取得目前玩家位置
     let x = playerBody.position.x
     let y = playerBody.position.y
     let z = playerBody.position.z
 
-    // 子彈剛體與網格
-    const ammoBody = new CANNON.Body({ mass: ammoMass })
-    ammoBody.addShape(ammoShape)
-    const ammoMaterial = new THREE.MeshStandardMaterial({ color: ammoColor })
-    const ammoMesh = new THREE.Mesh(ammoGeometry, ammoMaterial)
-    world.addBody(ammoBody)
-    scene.add(ammoMesh)
-    ammoMesh.castShadow = true
-    ammoMesh.receiveShadow = true
-    ammos.push(ammoBody)
-    ammoMeshes.push(ammoMesh)
-    getShootDir(e, shootDirection)
-    ammoBody.velocity.set(
-      shootDirection.x * shootVelo,
-      shootDirection.y * shootVelo,
-      shootDirection.z * shootVelo
-    )
-    // Move the ball outside the player sphere
-    x += shootDirection.x * (sphereShape.radius * 1.02 + ballShape.radius)
-    y += shootDirection.y * (sphereShape.radius * 1.02 + ballShape.radius)
-    z += shootDirection.z * (sphereShape.radius * 1.02 + ballShape.radius)
-    ammoBody.position.set(x, y, z)
-    ammoMesh.position.set(x, y, z)
+    // 左鍵（1）射擊與右鍵（3）疊磚
+    if (e.which === 1) {
+      // 子彈數量過多時移除舊子彈
+      if (ammos.length > 50) {
+        for (let i = 0; i < ammos.length; i++) {
+          ammoMeshes[i].geometry.dispose()
+          scene.remove(ammoMeshes[i])
+          world.remove(ammos[i])
+        }
+        ammos.length = 0
+        ammoMeshes.length = 0
+      }
+      // 子彈剛體與網格
+      const ammoBody = new CANNON.Body({ mass: 50 })
+      ammoBody.addShape(ballShape)
+      const ammoMaterial = new THREE.MeshStandardMaterial({ color: 0x93882f })
+      const ammoMesh = new THREE.Mesh(ballGeometry, ammoMaterial)
+      world.addBody(ammoBody)
+      scene.add(ammoMesh)
+      ammoMesh.castShadow = true
+      ammoMesh.receiveShadow = true
+      ammos.push(ammoBody)
+      ammoMeshes.push(ammoMesh)
+      getShootDir(e, shootDirection)
+      ammoBody.velocity.set(
+        shootDirection.x * shootVelo,
+        shootDirection.y * shootVelo,
+        shootDirection.z * shootVelo
+      )
+      // Move the ball outside the player sphere
+      x += shootDirection.x * (sphereShape.radius * 1.02 + ballShape.radius)
+      y += shootDirection.y * (sphereShape.radius * 1.02 + ballShape.radius)
+      z += shootDirection.z * (sphereShape.radius * 1.02 + ballShape.radius)
+      ammoBody.position.set(x, y, z)
+      ammoMesh.position.set(x, y, z)
+    } else if (e.which === 3) {
+      // 磚塊剛體與網格
+      const brickBody = new CANNON.Body({ mass: 10 })
+      brickBody.addShape(boxShape)
+      const brickMaterial = new THREE.MeshStandardMaterial({ color: 0x0f0201 })
+      const brickMesh = new THREE.Mesh(boxGeometry, brickMaterial)
+      world.addBody(brickBody)
+      scene.add(brickMesh)
+      brickMesh.castShadow = true
+      brickMesh.receiveShadow = true
+      bricks.push(brickBody)
+      brickMeshes.push(brickMesh)
+      getShootDir(e, shootDirection)
+      brickBody.velocity.set(
+        shootDirection.x,
+        shootDirection.y,
+        shootDirection.z
+      )
+      // Move the ball outside the player sphere
+      x += shootDirection.x * (sphereShape.radius * 1.02 + ballShape.radius)
+      y += shootDirection.y * (sphereShape.radius * 1.02 + ballShape.radius)
+      z += shootDirection.z * (sphereShape.radius * 1.02 + ballShape.radius)
+      brickBody.position.set(x, y, z)
+      brickMesh.position.set(x, y, z)
+    }
   }
 })
 
@@ -302,43 +340,75 @@ function render() {
       ammoMeshes[i].position.copy(ammos[i].position)
       ammoMeshes[i].quaternion.copy(ammos[i].quaternion)
     }
-    creeperObj.head.position.copy(creeperObj.headBody.position)
-    creeperObj.head.quaternion.copy(creeperObj.headBody.quaternion)
-    creeperObj.body.position.copy(creeperObj.bodyBody.position)
-    creeperObj.body.quaternion.copy(creeperObj.bodyBody.quaternion)
-    creeperObj.leftFrontLeg.position.copy(creeperObj.leftFrontLegBody.position)
-    creeperObj.leftFrontLeg.quaternion.copy(
-      creeperObj.leftFrontLegBody.quaternion
-    )
-    creeperObj.leftBackLeg.position.copy(creeperObj.leftBackLegBody.position)
-    creeperObj.leftBackLeg.quaternion.copy(
-      creeperObj.leftBackLegBody.quaternion
-    )
-    creeperObj.rightFrontLeg.position.copy(
-      creeperObj.rightFrontLegBody.position
-    )
-    creeperObj.rightFrontLeg.quaternion.copy(
-      creeperObj.rightFrontLegBody.quaternion
-    )
-    creeperObj.rightBackLeg.position.copy(creeperObj.rightBackLegBody.position)
-    creeperObj.rightBackLeg.quaternion.copy(
-      creeperObj.rightBackLegBody.quaternion
-    )
+    // Update shooting brick positions
+    for (let i = 0; i < bricks.length; i++) {
+      brickMeshes[i].position.copy(bricks[i].position)
+      brickMeshes[i].quaternion.copy(bricks[i].quaternion)
+    }
+    // update creepers
+    for (let i = 0; i < creeperObj.length; i++) {
+      creeperObj[i].updateMesh()
+      // creeperObj[i].creeperScaleBody()
+      // creeperObj[i].creeperFeetWalk()
+      if (creeperObj[i].head.position.y < 7 && !creeperObj[i].isKnockOut) {
+        for (let j = 0; j < scene.children.length; j++) {
+          const object = scene.children[j]
+          // 場景內有苦力怕才爆炸
+          if (object.name === 'creeper') {
+            // 清除之前爆炸粒子
+            if (explosion) {
+              const len = explosion.length
+              if (len > 0) {
+                for (let i = 0; i < len; i++) {
+                  explosion[i].destroy()
+                }
+              }
+              explosion.length = 0
+            }
+
+            // 移除苦力怕網格與剛體
+            scene.remove(creeperObj[i].creeper)
+            world.remove(creeperObj[i].headBody)
+            world.remove(creeperObj[i].bodyBody)
+            world.remove(creeperObj[i].leftFrontLegBody)
+            world.remove(creeperObj[i].leftBackLegBody)
+            world.remove(creeperObj[i].rightFrontLegBody)
+            world.remove(creeperObj[i].rightBackLegBody)
+
+            // 第一次倒地避免重複計分
+            creeperObj[i].isKnockOut = true
+
+            const x = creeperObj[i].body.position.x
+            const y = creeperObj[i].body.position.y
+            const z = creeperObj[i].body.position.z
+
+            // 產生爆炸
+            explosion[0] = new Explosion(x, y, z, 0x000000)
+            explosion[1] = new Explosion(x + 5, y + 5, z + 5, 0x333333)
+            explosion[2] = new Explosion(x - 5, y + 5, z + 10, 0x666666)
+            explosion[3] = new Explosion(x - 5, y + 5, z + 5, 0x999999)
+            explosion[4] = new Explosion(x + 5, y + 5, z - 5, 0xcccccc)
+          }
+        }
+        // 計分並顯示到畫面上
+        gameData.score += 10000
+        scoreDOM.textContent = gameData.score
+      }
+    }
   }
   controls.update(Date.now() - time)
   time = Date.now()
 
-  // creeperFeetWalk()
   // TWEEN.update()
   // explosion
-  // if (explosion) {
-  //   const len = explosion.length
-  //   if (len > 0) {
-  //     for (let i = 0; i < len; i++) {
-  //       explosion[i].update()
-  //     }
-  //   }
-  // }
+  if (explosion) {
+    const len = explosion.length
+    if (len > 0) {
+      for (let i = 0; i < len; i++) {
+        explosion[i].update()
+      }
+    }
+  }
 
   renderer.render(scene, camera)
 }
