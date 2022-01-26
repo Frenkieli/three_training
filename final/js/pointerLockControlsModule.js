@@ -5,6 +5,10 @@ function initPointerLockControls() {
 
   const blocker = document.getElementById('blocker')
   const instructions = document.getElementById('instructions')
+  const start = document.getElementById('start')
+  const restart = document.getElementById('restart')
+  const game_info = document.getElementsByClassName('game_info')
+
   const havePointerLock =
     'pointerLockElement' in document ||
     'mozPointerLockElement' in document ||
@@ -19,11 +23,16 @@ function initPointerLockControls() {
       ) {
         controls.enabled = true
         blocker.style.display = 'none'
+        game_info[0].style.display = 'flex'
+        gameData.prevTime = new Date()
+        start.textContent = '繼續遊戲'
+        restart.style.display = 'inline-block'
       } else {
         controls.enabled = false
         blocker.style.display = '-webkit-box'
         blocker.style.display = '-moz-box'
         blocker.style.display = 'box'
+        game_info[0].style.display = 'none'
         instructions.style.display = ''
       }
     }
@@ -41,7 +50,7 @@ function initPointerLockControls() {
     document.addEventListener('pointerlockerror', pointerlockerror, false)
     document.addEventListener('mozpointerlockerror', pointerlockerror, false)
     document.addEventListener('webkitpointerlockerror', pointerlockerror, false)
-    instructions.addEventListener(
+    start.addEventListener(
       'click',
       function(event) {
         instructions.style.display = 'none'
